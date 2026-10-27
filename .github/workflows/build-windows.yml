@@ -1,0 +1,44 @@
+name: Build TimeFreeze VST3
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.6
+          path: JUCE
+
+      - name: Configure
+        run: cmake -S . -B build -DJUCE_DIR="${{ github.workspace }}\\JUCE" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3
+        run: cmake --build build --config Release --parallel
+
+      - name: Package VST3
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path build -Recurse -Directory -Filter "TimeFreeze.vst3" | Select-Object -First 1
+          if (-not $plugin) { throw "TimeFreeze.vst3 bundle not found after build." }
+          Compress-Archive -Path $plugin.FullName -DestinationPath "$env:GITHUB_WORKSPACE/TimeFreeze-VST3-Windows.zip" -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TimeFreeze-VST3-Windows
+          path: TimeFreeze-VST3-Windows.zip
+          if-no-files-found: error
+          retention-days: 14
